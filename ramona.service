@@ -1,0 +1,13 @@
+[Unit]
+Description=Ramona+ controller Service
+
+[Service]
+User=aloe
+WorkingDirectory=/home/aloe/scripts
+ExecStart=/usr/bin/python3 water_service.py &
+TimeoutStopSec=10
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
