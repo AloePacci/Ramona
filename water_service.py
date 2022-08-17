@@ -14,15 +14,6 @@ from email.mime.text import MIMEText
 class Logger:
     def __init__(self, log_file):
         self.log_file=log_file
-
-    def log(self, message):
-        with open("log.txt","a") as f:
-            aux=datetime.today()   
-            time_aux=aux.strftime("%m.%d.%Y..%H.%M")
-            f.write(f"{time_aux} {message}\n")
-
-class Gmail_manager:
-    def __init__(self):
         # Get the path to the pickle file
         home_dir = os.path.expanduser('~')
         pickle_path = os.path.join(home_dir, 'gmail.pickle')
@@ -30,17 +21,27 @@ class Gmail_manager:
         # Load our pickled credentials
         self.creds = pickle.load(open(pickle_path, 'rb'))
 
-    def send_message(self, mensaje):
+    def log(self, message):
+        with open("log.txt","a") as f:
+            aux=datetime.today()   
+            time_aux=aux.strftime("%m.%d.%Y..%H.%M")
+            f.write(f"{time_aux} {message}\n")
+
+    def init_message(self, mensaje):
+        self.log(mensaje)
         # Build the service
         service = googleapiclient.discovery.build('gmail', 'v1', credentials=self.creds)
 
         # Create a message
         my_email = 'navelaramona@gmail.com'
         msg = MIMEMultipart('alternative')
-        msg['Subject'] = 'Estado Nave la Ramona'
+        msg['Subject'] = 'Init nave Ramona'
         msg['From'] = f'{my_email}'
-        msg['To'] = ", ".join(['bfbdj92@gmail.com', 'bfbdj93@gmail.com', 'ecasadog@dipucordoba.es'])
-        msgPlain = mensaje
+        msg['To'] = ", ".join(['bfbdj92@gmail.com', 'ecasadog@dipucordoba.es'])
+        mess="El sistema se ha reiniciado, el riego programado es:"
+        for i in mensaje:
+            mess+="\n"+i
+        msgPlain = mess
         msgHtml = f'<b>{msgPlain}</b>'
         msg.attach(MIMEText(msgPlain, 'plain'))
         msg.attach(MIMEText(msgHtml, 'html'))
@@ -53,6 +54,29 @@ class Gmail_manager:
             service.users().messages().send(
                 userId="me", body=message1).execute())
 
+    def send_message(self, mensaje):
+        self.log(mensaje)
+        # Build the service
+        service = googleapiclient.discovery.build('gmail', 'v1', credentials=self.creds)
+
+        # Create a message
+        my_email = 'navelaramona@gmail.com'
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = 'Estado Nave la Ramona'
+        msg['From'] = f'{my_email}'
+        msg['To'] = ", ".join(['bfbdj92@gmail.com', 'ecasadog@dipucordoba.es'])
+        msgPlain = mensaje
+        msgHtml = f'<b>{msgPlain}</b>'
+        msg.attach(MIMEText(msgPlain, 'plain'))
+        msg.attach(MIMEText(msgHtml, 'html'))
+        raw = base64.urlsafe_b64encode(msg.as_bytes())
+        raw = raw.decode()
+        body = {'raw': raw}
+
+        message1 = body
+        message = (
+            service.users().messages().send(
+                userId="me", body=message1).execute())
 #we will host everything in a class
 class Endpoint:
     def __init__(self, config_file="/home/aloe/config.txt", log_file="/home/aloe/log.txt", motor_pin=16, signal_pin=18, water_level_pin=22):
@@ -78,11 +102,8 @@ class Endpoint:
         #TODO: we can use a thread for checking pins to lighten state machine code
         #thread of status
         #self.status_thread = threading.Thread(target=self.pin_status)
-
-        self.gmail=Gmail_manager()
         start=datetime.today()
         temp=start.strftime("%m.%d.%Y..%H.%M")
-        self.gmail.send_message(f"El programa se ha reiniciado a las {temp}")
         #state machine, this could be done with threads and other things
         while True:
             if state=="init":
@@ -91,15 +112,16 @@ class Endpoint:
                     GPIO.output(self.motor_pin, GPIO.HIGH)
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
-                    self.gmail.send_message(f"encendido programado a las {temp}")
+                    self.logger.log(f"encendido programado a las {temp}")
                 else:
                     state="sleep"
                     GPIO.output(self.motor_pin, GPIO.LOW)
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
-                    self.gmail.send_message(f"apagado programado a las {temp}")
+                    self.logger.log(f"apagado programado a las {temp}")
 
             elif state=="water":
+                sleep(1)
                 if self.water_time(False): #if we dont want to water anymore
                     state="init"
                 elif (GPIO.input(self.signal_pin)!=1) or (GPIO.input(self.water_level_pin)!=1): #if pump is not working
@@ -120,26 +142,29 @@ class Endpoint:
                 false_negative=False
                 for i in range(5):
                     sleep(1)
-                    if ((GPIO.input(self.signal_pin)) or (GPIO.input(self.water_level_pin))):
+                    if ((GPIO.input(self.signal_pin)) and (GPIO.input(self.water_level_pin))):
                         false_negative=True
                 if false_negative:
                     state="water"
                     continue
-                self.gmail.send_message(f"La bomba se ha apagado a las {temp}")
-                while ((GPIO.input(self.signal_pin)!=1) or (GPIO.input(self.water_level_pin)!=1)) and self.water_time(True):
-                    sleep(1)
+                self.logger.log(f"{(GPIO.input(self.signal_pin))} {(GPIO.input(self.water_level_pin))} at {temp}<")
+                self.logger.send_message(f"La bomba se ha apagado debido a las sondas a las {temp}, por seguridad, la sonda seguirá apagada 10 mins")
+                GPIO.output(self.motor_pin, GPIO.LOW)
+                for i in range (60):
+                    sleep(10)
+                    if self.water_time(False):
+                        break
                 if self.water_time(False):
                     self.logger.log("pump was disconnected while there is no water")
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
-                    self.gmail.send_message(f"sistema desconectado por protocolo a las {temp}")
-
+                    self.logger.send_message(f"sistema desconectado por protocolo a las {temp}")
                 else:
                     time=datetime.today()-start
                     self.logger.log(f"water came back after {time}")
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
-                    self.gmail.send_message(f"La bomba ha vuelto a la normalidad a las {temp} despues de {time}")
+                    self.logger.send_message(f"La bomba ha vuelto a la normalidad a las {temp} despues de {time}")
                 state="init"
 
             elif state=="external_on":
@@ -154,7 +179,7 @@ class Endpoint:
                     state="sleep"
                     continue
 
-                self.gmail.send_message(f"La bomba se ha encendido fuera de hora a las {temp}")
+                self.logger.send_message(f"modo manual encendido fuera de hora a las {temp}")
 
                 while ((GPIO.input(self.signal_pin)) or (GPIO.input(self.water_level_pin))) and self.water_time(False):
                     sleep(1)
@@ -162,14 +187,14 @@ class Endpoint:
                     self.logger.log("manual mode was on till water time")
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
-                    self.gmail.send_message(f"El modo manual se ha sobrescrito a las {temp}")
+                    self.logger.send_message(f"El modo manual se ha sobreescrito debido a llegar a hora de riego")
 
                 else:
                     time=datetime.today()-start
                     start=datetime.today()
                     temp=start.strftime("%m.%d.%Y..%H.%M")
                     self.logger.log(f"manual mode turned off after {time}")
-                    self.gmail.send_message(f"el modo manual se ha apagado a las {temp} despues de {time}")
+                    self.logger.send_message(f"el modo manual se ha apagado a las {temp} despues de {time}")
 
                 state="init"
 
@@ -178,7 +203,7 @@ class Endpoint:
                 self.logger.log("incoherent state")
                 start=datetime.today()
                 temp=start.strftime("%m.%d.%Y..%H.%M")
-                self.gmail.send_message(f"Ha habido uh bug a las {temp} estado = {state}")
+                self.logger.send_message(f"Ha habido uh bug a las {temp} estado = {state}")
                 state="init"
 
             sleep(1)
@@ -194,6 +219,7 @@ class Endpoint:
                 hours=hours.split(",")
                 for i in hours:
                     self.water[weekdays.index(day)].append(i.split("-"))
+            self.logger.init_message(f)
 
 
     def water_time(self, flag):
@@ -203,9 +229,12 @@ class Endpoint:
         for time_frame in self.water[today.weekday()]:
             start=int(time_frame[0].replace(":",""))
             end=int(time_frame[1].replace(":",""))
-            if actualtime>start and actualtime<end:
+            if actualtime>=start and actualtime<end:
                 do_we_water=True
-        return do_we_water
+        if flag==do_we_water:
+            return True
+        else: 
+            return False
             
 
 
