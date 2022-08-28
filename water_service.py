@@ -38,11 +38,12 @@ class Logger:
         msg['Subject'] = 'Init nave Ramona'
         msg['From'] = f'{my_email}'
         msg['To'] = ", ".join(['bfbdj92@gmail.com', 'ecasadog@dipucordoba.es'])
-        mess="El sistema se ha reiniciado, el riego programado es:"
+        msgPlain = "El sistema se ha reiniciado, el riego programado es:"
+        msgHtml = f'<b>El sistema se ha reiniciado, el riego programado es:'
         for i in mensaje:
-            mess+="\n"+i
-        msgPlain = mess
-        msgHtml = f'<b>{msgPlain}</b>'
+            msgPlain += "\n"+i
+            msgHtml += "<br>"+i
+        msgHtml += "</b>"
         msg.attach(MIMEText(msgPlain, 'plain'))
         msg.attach(MIMEText(msgHtml, 'html'))
         raw = base64.urlsafe_b64encode(msg.as_bytes())
@@ -212,14 +213,16 @@ class Endpoint:
         weekdays=["Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","Domingo"] #string with names of day of weeks
         self.water=[[] for i in range(7)] #we create empty list
         with open(config_file,"r") as f: #we read the file
+            mess=[] #empty string for logs
             for line in f: #each line
+                mess.append(line)
                 aux=line.split(" ") 
                 day=aux[0]
                 hours=aux[1].strip()
                 hours=hours.split(",")
                 for i in hours:
                     self.water[weekdays.index(day)].append(i.split("-"))
-            self.logger.init_message(f)
+            self.logger.init_message(mess)
 
 
     def water_time(self, flag):
