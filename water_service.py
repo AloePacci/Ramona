@@ -224,7 +224,7 @@ class Endpoint:
 
     def water_time(self, flag):
         today=datetime.today()
-        actualtime=int(today.strftime("%H%M"))+100
+        actualtime=int(today.strftime("%H%M"))
         do_we_water=False
         for time_frame in self.water[today.weekday()]:
             start=int(time_frame[0].replace(":",""))

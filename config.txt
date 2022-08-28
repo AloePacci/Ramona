@@ -1,4 +1,7 @@
 Lunes 17:00-19:00
+Martes 17:00-19:00
 Miercoles 17:00-19:00
+Jueves 17:00-19:00
 Viernes 17:00-19:00
+Sabado 17:00-19:00
 Domingo 17:00-19:00
